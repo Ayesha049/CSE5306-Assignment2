@@ -1,0 +1,48 @@
+syntax = "proto3";
+
+package rl;
+
+message Empty {}
+
+message Status {
+  bool ok = 1;
+  string message = 2;
+}
+
+message ExperimentConfig {
+  string experiment_id = 1;
+  string env_name = 2;
+  int32 seed = 3;
+  int32 max_steps = 4;
+  string algorithm = 5;
+  map<string, string> hyperparams = 6;
+}
+
+message Transition {
+  string experiment_id = 1;
+  bytes state = 2;
+  bytes action = 3;
+  float reward = 4;
+  bytes next_state = 5;
+  bool done = 6;
+  int64 step = 7;
+  int32 policy_version = 8;
+}
+
+message Batch {
+  repeated Transition transitions = 1;
+}
+
+message Policy {
+  string experiment_id = 1;
+  int32 version = 2;
+  bytes weights = 3;
+}
+
+message Metrics {
+  string experiment_id = 1;
+  string source_node = 2;
+  float value = 3;
+  string metric_name = 4;
+  int64 step = 5;
+}

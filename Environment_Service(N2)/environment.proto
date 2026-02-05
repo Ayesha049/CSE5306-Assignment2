@@ -1,0 +1,16 @@
+syntax = "proto3";
+package rl;
+
+import "common.proto";
+
+service EnvironmentService {
+
+  // Called by N1 to initialize environments
+  rpc Initialize(ExperimentConfig) returns (Status);
+
+  // Start rollout collection
+  rpc StartRollout(ExperimentConfig) returns (Status);
+
+  // Stop rollout
+  rpc StopRollout(ExperimentConfig) returns (Status);
+}

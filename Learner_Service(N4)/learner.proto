@@ -1,0 +1,16 @@
+syntax = "proto3";
+package rl;
+
+import "common.proto";
+
+service LearnerService {
+
+  // Initialize learner with config
+  rpc Initialize(ExperimentConfig) returns (Status);
+
+  // Trigger a training step
+  rpc TrainStep(ExperimentConfig) returns (Status);
+
+  // Fetch training metrics
+  rpc GetTrainingStatus(ExperimentConfig) returns (Metrics);
+}

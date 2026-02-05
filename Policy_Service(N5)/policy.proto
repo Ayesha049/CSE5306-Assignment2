@@ -1,0 +1,20 @@
+syntax = "proto3";
+package rl;
+
+import "common.proto";
+
+message PolicyRequest {
+  string experiment_id = 1;
+}
+
+service PolicyService {
+
+  // Actors fetch latest weights
+  rpc GetPolicy(PolicyRequest) returns (Policy);
+
+  // Learner pushes new weights
+  rpc UpdatePolicy(Policy) returns (Status);
+
+  // Query current version
+  rpc GetPolicyVersion(PolicyRequest) returns (Policy);
+}
