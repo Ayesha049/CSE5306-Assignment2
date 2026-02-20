@@ -1,0 +1,31 @@
+syntax = "proto3";
+package rl.analytics;
+
+message Metrics {
+  string experiment_id = 1;
+  string source_node = 2; // N3, N4, etc.
+  string metric_name = 3; // e.g., "reward", "loss"
+  float value = 4;
+  int64 step = 5;
+}
+
+message Status {
+  bool ok = 1;
+}
+
+message QueryRequest {
+  string experiment_id = 1;
+  string metric_name = 2;
+}
+
+message MetricList {
+  repeated Metrics metrics = 1;
+}
+
+service AnalyticsService {
+  // Called by other services to report metrics
+  rpc ReportMetrics(Metrics) returns (Status);
+
+  // Called by Experiment Service to fetch aggregated metrics
+  rpc QueryMetrics(QueryRequest) returns (MetricList);
+}

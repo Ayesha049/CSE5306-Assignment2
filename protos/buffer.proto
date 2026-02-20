@@ -1,0 +1,34 @@
+syntax = "proto3";
+
+package rl.buffer;
+
+message Transition {
+  string state = 1;
+  string action = 2;
+  float reward = 3;
+  string next_state = 4;
+  bool done = 5;
+}
+
+// NEW wrapper message
+message PushRequest {
+  Transition transition = 1;
+}
+
+message SampleRequest {
+  int32 batch_size = 1;
+}
+
+message Batch {
+  repeated Transition transitions = 1;
+}
+
+message Status {
+  bool ok = 1;
+}
+
+service BufferService {
+  // Use wrapper message
+  rpc PushTransition(PushRequest) returns (Status);
+  rpc SampleBatch(SampleRequest) returns (Batch);
+}
