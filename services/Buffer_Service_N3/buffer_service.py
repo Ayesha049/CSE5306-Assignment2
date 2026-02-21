@@ -1,5 +1,5 @@
 import sys
-sys.path.append("../../stubs")  # adjust according to your folder structure
+sys.path.append("/app/stubs")  # path inside Docker container
 
 import grpc
 from concurrent import futures

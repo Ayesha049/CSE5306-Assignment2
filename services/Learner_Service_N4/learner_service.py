@@ -1,5 +1,5 @@
 import sys
-sys.path.append("../../stubs")
+sys.path.append("/app/stubs")  # path inside Docker container
 
 import grpc
 import time
@@ -10,10 +10,15 @@ import buffer_pb2
 import buffer_pb2_grpc
 import analytics_pb2
 import analytics_pb2_grpc
+from mpi4py import MPI
+
+comm = MPI.COMM_WORLD
+rank = comm.Get_rank()
+size = comm.Get_size()
 
 # Config: gRPC endpoints
-BUFFER_HOSTS = ["localhost:50051"]  # can add more for load balancing
-ANALYTICS_HOST = "localhost:50052"
+BUFFER_HOSTS = ["buffer:50051"]  # can add more for load balancing
+ANALYTICS_HOST = "analytics:50052"
 
 class LearnerService:
     def __init__(self):
@@ -55,6 +60,29 @@ class LearnerService:
             loss = self.train_policy(batch)
             self.send_metric("loss", loss, step)
             time.sleep(0.1)  # simulate time between steps
+
+    # def run_training_loop(self, steps=100):
+    #     for step in range(1, steps+1):
+
+    #         if rank == 0:
+    #             # Only master calls buffer
+    #             batch = self.sample_batch()
+    #         else:
+    #             batch = None
+
+    #         # Broadcast batch to all workers
+    #         batch = comm.bcast(batch, root=0)
+
+    #         # Each worker computes loss
+    #         local_loss = self.train_policy(batch)
+
+    #         # Aggregate losses (average)
+    #         total_loss = comm.reduce(local_loss, op=MPI.SUM, root=0)
+
+    #         if rank == 0:
+    #             avg_loss = total_loss / size
+    #             print(f"[Learner-MPI] Avg loss={avg_loss:.4f}")
+    #             self.send_metric("loss", avg_loss, step)
 
 
 def serve():

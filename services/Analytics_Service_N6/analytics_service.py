@@ -1,5 +1,5 @@
 import sys
-sys.path.append("../../stubs")
+sys.path.append("/app/stubs")  # path inside Docker container
 
 import grpc
 from concurrent import futures
@@ -10,7 +10,7 @@ import time
 
 # MySQL connection config
 DB_CONFIG = {
-    "host": "localhost",   # change to mysql container name in Docker
+    "host": "rl-mysql",   # change to mysql container name in Docker
     "user": "root",
     "password": "password",
     "database": "rl_analytics"
