@@ -14,19 +14,22 @@ import analytics_pb2_grpc
 import time
 
 def send_buffer_metric(buffer_size):
-    channel = grpc.insecure_channel('localhost:50052')  # Analytics gRPC port
-    stub = analytics_pb2_grpc.AnalyticsServiceStub(channel)
+    try:
+        channel = grpc.insecure_channel('analytics:50052')  # Analytics gRPC port
+        stub = analytics_pb2_grpc.AnalyticsServiceStub(channel)
 
-    metric = analytics_pb2.Metrics(
-        experiment_id="exp_001",
-        source_node="N3-Buffer",
-        metric_name="buffer_size",
-        value=float(buffer_size),
-        step=int(time.time())
-    )
+        metric = analytics_pb2.Metrics(
+            experiment_id="exp_001",
+            source_node="N3-Buffer",
+            metric_name="buffer_size",
+            value=float(buffer_size),
+            step=int(time.time())
+        )
 
-    response = stub.ReportMetrics(metric)
-    print("[Buffer] Metric sent:", response.ok)
+        response = stub.ReportMetrics(metric)
+        print("[Buffer] Metric sent:", response.ok)
+    except Exception as e:
+        print(f"[Buffer] Metric send failed: {e}")
 
 # File to persist the buffer
 BUFFER_FILE = "replay_buffer.pkl"
