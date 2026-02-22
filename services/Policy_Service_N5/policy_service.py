@@ -23,8 +23,10 @@ import threading
 import logging
 from concurrent import futures
 
-# ── stubs ──────────────────────────────────────────────────────────────────────
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), "../../stubs"))
+# # ── stubs ──────────────────────────────────────────────────────────────────────
+# sys.path.insert(0, os.path.join(os.path.dirname(__file__), "../../stubs"))
+import sys
+sys.path.append("/app/stubs")  # path inside Docker container
 
 import common_pb2         # Policy, Status  (from common.proto)
 import policy_pb2         # PolicyRequest   (from policy.proto)

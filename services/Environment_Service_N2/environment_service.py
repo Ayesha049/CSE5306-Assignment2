@@ -27,6 +27,8 @@ gRPC interface (from services/Environment_Service(N2)/environment.proto):
   StartRollout(ExperimentConfig) → Status
   StopRollout (ExperimentConfig) → Status
 """
+import sys
+sys.path.append("/app/stubs")  # path inside Docker container
 
 import sys
 import os
@@ -39,8 +41,8 @@ import time
 import logging
 from concurrent import futures
 
-# ── stubs ──────────────────────────────────────────────────────────────────────
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), "../../stubs"))
+# # ── stubs ──────────────────────────────────────────────────────────────────────
+# sys.path.insert(0, os.path.join(os.path.dirname(__file__), "../../stubs"))
 
 import common_pb2             # ExperimentConfig, Status, Policy
 import environment_pb2_grpc   # EnvironmentServiceServicer
@@ -60,10 +62,10 @@ logging.basicConfig(
 logger = logging.getLogger("N2-Environment")
 
 # ── service addresses ──────────────────────────────────────────────────────────
-N3_ADDR = "localhost:50051"   # Buffer Service
-N5_ADDR = "localhost:50056"   # Policy Service
-N6_ADDR = "localhost:50052"   # Analytics Service
-PORT    = 50054
+N3_ADDR = "buffer:50051"   # Buffer Service
+N5_ADDR = "policy:50056"   # Policy Service
+N6_ADDR = "analytics:50052"   # Analytics Service
+PORT    = 50050
 
 # ── rollout hyper-parameters ───────────────────────────────────────────────────
 POLICY_REFRESH_STEPS = 50     # re-fetch policy from N5 every N environment steps
@@ -372,6 +374,7 @@ class EnvironmentServicer(environment_pb2_grpc.EnvironmentServiceServicer):
 
     def Initialize(self, request, context):
         """Create a RolloutRunner (and the underlying environment) for this experiment."""
+        print(f"[{request.experiment_id}] Initialize called with env='{request.env_name}'")
         exp_id = request.experiment_id
         with self._lock:
             if exp_id not in self._runners:
@@ -383,6 +386,7 @@ class EnvironmentServicer(environment_pb2_grpc.EnvironmentServiceServicer):
 
     def StartRollout(self, request, context):
         """Start (or resume) the background sampling loop for this experiment."""
+        print(f"[{request.experiment_id}] StartRollout called")
         exp_id = request.experiment_id
         with self._lock:
             if exp_id not in self._runners:
@@ -394,6 +398,7 @@ class EnvironmentServicer(environment_pb2_grpc.EnvironmentServiceServicer):
         return common_pb2.Status(ok=True, message="Rollout started")
 
     def StopRollout(self, request, context):
+        print(f"[{request.experiment_id}] StopRollout called")
         """Signal the sampling loop to stop (non-blocking)."""
         exp_id = request.experiment_id
         with self._lock:

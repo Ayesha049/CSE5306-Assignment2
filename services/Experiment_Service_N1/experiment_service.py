@@ -26,8 +26,8 @@ import threading
 import logging
 from concurrent import futures
 
-# ── stubs ──────────────────────────────────────────────────────────────────────
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), "../../stubs"))
+import sys
+sys.path.append("/app/stubs")  # path inside Docker container
 
 import common_pb2              # ExperimentConfig, Status
 import experiment_pb2_grpc     # ExperimentServiceServicer
@@ -44,8 +44,8 @@ logging.basicConfig(
 logger = logging.getLogger("N1-Experiment")
 
 # ── service addresses ──────────────────────────────────────────────────────────
-N2_ADDR = "localhost:50054"   # Environment Service
-N6_ADDR = "localhost:50052"   # Analytics Service
+N2_ADDR = "environment:50050"   # Environment Service
+N6_ADDR = "analytics:50052"   # Analytics Service
 PORT    = 50053
 
 
@@ -97,6 +97,7 @@ class ExperimentServicer(experiment_pb2_grpc.ExperimentServiceServicer):
         The downstream N3→N4→N5 chain then runs automatically.
         """
         exp_id = request.experiment_id
+        print(f"[{exp_id}] StartExperiment called with env='{request.env_name}' algo='{request.algorithm}' seed={request.seed}")
 
         if self._manager.is_running(exp_id):
             return common_pb2.Status(
@@ -113,6 +114,7 @@ class ExperimentServicer(experiment_pb2_grpc.ExperimentServiceServicer):
         env_stub    = environment_pb2_grpc.EnvironmentServiceStub(env_channel)
 
         try:
+            print(f"[{exp_id}] Calling N2.Initialize...")
             resp = env_stub.Initialize(request, timeout=10)
             if not resp.ok:
                 return common_pb2.Status(
@@ -188,15 +190,42 @@ class ExperimentServicer(experiment_pb2_grpc.ExperimentServiceServicer):
 
 
 # ── server entry point ─────────────────────────────────────────────────────────
+def auto_start_experiment():
+    import time
+    time.sleep(5)  # wait for other containers (N2, N6) to be ready
+
+    logger.info("[AUTO] Triggering StartExperiment...")
+
+    channel = grpc.insecure_channel(f"localhost:{PORT}")
+    stub = experiment_pb2_grpc.ExperimentServiceStub(channel)
+
+    config = common_pb2.ExperimentConfig(
+        experiment_id="auto_exp",
+        env_name="CartPole",
+        algorithm="DQN",
+        seed=42,
+        max_steps=10
+    )
+
+    try:
+        response = stub.StartExperiment(config)
+        logger.info(f"[AUTO] Response: {response.message}")
+    except grpc.RpcError as e:
+        logger.error(f"[AUTO] Failed to call StartExperiment: {e.details()}")
 
 def serve():
     server = grpc.server(futures.ThreadPoolExecutor(max_workers=10))
     experiment_pb2_grpc.add_ExperimentServiceServicer_to_server(
         ExperimentServicer(), server
     )
+
     server.add_insecure_port(f"[::]:{PORT}")
     server.start()
     logger.info(f"N1 Experiment Service started on port {PORT}")
+
+    # 🔥 Start auto-client thread
+    threading.Thread(target=auto_start_experiment, daemon=True).start()
+
     server.wait_for_termination()
 
 
