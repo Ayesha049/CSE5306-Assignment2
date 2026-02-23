@@ -3,65 +3,56 @@ sys.path.append("/app/stubs")  # path inside Docker container
 
 import grpc
 from concurrent import futures
+import time
+import mysql.connector
+from mysql.connector import pooling
+
 import analytics_pb2
 import analytics_pb2_grpc
-import mysql.connector
-import time
 
-# MySQL connection config
+# ── MySQL connection pool ─────────────────────────────────────────────
 DB_CONFIG = {
-    "host": "rl-mysql",   # change to mysql container name in Docker
+    "host": "rl-mysql",
     "user": "root",
     "password": "password",
-    "database": "rl_analytics"
+    "database": "rl_analytics",
+    "autocommit": True
 }
 
+POOL_NAME = "analytics_pool"
+POOL_SIZE = 10
 
+connection_pool = pooling.MySQLConnectionPool(
+    pool_name=POOL_NAME,
+    pool_size=POOL_SIZE,
+    **DB_CONFIG
+)
 
+def get_conn():
+    """Get a connection from the pool, retrying if necessary."""
+    retries = 10
+    for i in range(retries):
+        try:
+            conn = connection_pool.get_connection()
+            return conn
+        except mysql.connector.Error as e:
+            print(f"[Analytics] Pool get_connection failed ({i+1}/{retries}): {e}")
+            time.sleep(2)
+    raise Exception("Failed to get MySQL connection from pool.")
+
+# ── Analytics Service ───────────────────────────────────────────────
 class AnalyticsService(analytics_pb2_grpc.AnalyticsServiceServicer):
+
     def __init__(self):
-        self.conn = mysql.connector.connect(**DB_CONFIG)
-        self.cursor = self.conn.cursor()
-        print("[Analytics] Connected to MySQL")
+        print("[Analytics] Initializing service...")
         self.init_db()
+        print("[Analytics] Service initialized.")
 
-    def get_or_create_node(self, node_name, node_type):
-        self.cursor.execute(
-            "SELECT node_id FROM nodes WHERE node_name=%s",
-            (node_name,)
-        )
-        result = self.cursor.fetchone()
-
-        if result:
-            return result[0]
-
-        self.cursor.execute(
-            "INSERT INTO nodes (node_name, node_type) VALUES (%s, %s)",
-            (node_name, node_type)
-        )
-        self.conn.commit()
-        return self.cursor.lastrowid
-
-    def get_or_create_metric_type(self, metric_name):
-        self.cursor.execute(
-            "SELECT metric_type_id FROM metric_types WHERE name=%s",
-            (metric_name,)
-        )
-        result = self.cursor.fetchone()
-
-        if result:
-            return result[0]
-
-        self.cursor.execute(
-            "INSERT INTO metric_types (name) VALUES (%s)",
-            (metric_name,)
-        )
-        self.conn.commit()
-        return self.cursor.lastrowid
-    
     def init_db(self):
-        # Ensure nodes table exists
-        self.cursor.execute("""
+        conn = get_conn()
+        cursor = conn.cursor()
+        # Nodes table
+        cursor.execute("""
             CREATE TABLE IF NOT EXISTS nodes (
                 node_id INT AUTO_INCREMENT PRIMARY KEY,
                 node_name VARCHAR(50) UNIQUE,
@@ -69,18 +60,16 @@ class AnalyticsService(analytics_pb2_grpc.AnalyticsServiceServicer):
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )
         """)
-
-        # Ensure metric_types table exists
-        self.cursor.execute("""
+        # Metric types table
+        cursor.execute("""
             CREATE TABLE IF NOT EXISTS metric_types (
                 metric_type_id INT AUTO_INCREMENT PRIMARY KEY,
                 name VARCHAR(50) UNIQUE,
                 description VARCHAR(200)
             )
         """)
-
-        # Ensure metrics table exists with experiment_id and step columns
-        self.cursor.execute("""
+        # Metrics table
+        cursor.execute("""
             CREATE TABLE IF NOT EXISTS metrics (
                 metric_id INT AUTO_INCREMENT PRIMARY KEY,
                 node_id INT,
@@ -93,47 +82,54 @@ class AnalyticsService(analytics_pb2_grpc.AnalyticsServiceServicer):
                 FOREIGN KEY (metric_type_id) REFERENCES metric_types(metric_type_id)
             )
         """)
-
-        self.conn.commit()
+        conn.close()
         print("[Analytics] Tables ensured.")
 
+    # ── Helpers ───────────────────────────────────────────────
+    def get_or_create_node(self, node_name, node_type, cursor):
+        cursor.execute("SELECT node_id FROM nodes WHERE node_name=%s", (node_name,))
+        row = cursor.fetchone()
+        if row:
+            return row[0]
+        cursor.execute("INSERT INTO nodes (node_name, node_type) VALUES (%s, %s)", (node_name, node_type))
+        return cursor.lastrowid
+
+    def get_or_create_metric_type(self, metric_name, cursor):
+        cursor.execute("SELECT metric_type_id FROM metric_types WHERE name=%s", (metric_name,))
+        row = cursor.fetchone()
+        if row:
+            return row[0]
+        cursor.execute("INSERT INTO metric_types (name) VALUES (%s)", (metric_name,))
+        return cursor.lastrowid
+
+    # ── gRPC Methods ─────────────────────────────────────────
     def ReportMetrics(self, request, context):
         try:
-            node_id = self.get_or_create_node(
-                request.source_node,   # FIXED
-                "unknown"              # since proto has no node_type
-            )
+            conn = get_conn()
+            cursor = conn.cursor()
+            node_id = self.get_or_create_node(request.source_node, "unknown", cursor)
+            metric_type_id = self.get_or_create_metric_type(request.metric_name, cursor)
 
-            metric_type_id = self.get_or_create_metric_type(
-                request.metric_name
-            )
-
-            self.cursor.execute(
-                """
+            cursor.execute("""
                 INSERT INTO metrics (node_id, metric_type_id, value, experiment_id, step)
                 VALUES (%s, %s, %s, %s, %s)
-                """,
-                (
-                    node_id,
-                    metric_type_id,
-                    request.value,
-                    request.experiment_id,
-                    request.step
-                )
-            )
-            self.conn.commit()
+            """, (node_id, metric_type_id, request.value, request.experiment_id, request.step))
+
+            cursor.close()
+            conn.close()
 
             print(f"[Analytics] {request.metric_name}={request.value} from {request.source_node}")
-
             return analytics_pb2.Status(ok=True)
 
-        except Exception as e:
-            print(f"[Analytics ERROR] {e}")
+        except mysql.connector.Error as e:
+            print(f"[Analytics ERROR] MySQL Error: {e}")
             return analytics_pb2.Status(ok=False)
-        
+
     def QueryMetrics(self, request, context):
         try:
-            self.cursor.execute("""
+            conn = get_conn()
+            cursor = conn.cursor()
+            cursor.execute("""
                 SELECT m.value, m.timestamp, n.node_name, mt.name
                 FROM metrics m
                 JOIN nodes n ON m.node_id = n.node_id
@@ -141,34 +137,31 @@ class AnalyticsService(analytics_pb2_grpc.AnalyticsServiceServicer):
                 WHERE mt.name=%s
             """, (request.metric_name,))
 
-            rows = self.cursor.fetchall()
+            rows = cursor.fetchall()
+            cursor.close()
+            conn.close()
 
             response = analytics_pb2.MetricList()
-
-            for row in rows:
+            for value, timestamp, node_name, metric_name in rows:
                 metric = response.metrics.add()
-                metric.metric_name = row[3]
-                metric.value = row[0]
-                metric.source_node = row[2]
+                metric.metric_name = metric_name
+                metric.value = value
+                metric.source_node = node_name
 
             return response
 
-        except Exception as e:
-            print(f"[Query ERROR] {e}")
+        except mysql.connector.Error as e:
+            print(f"[Analytics ERROR] MySQL Query Error: {e}")
             return analytics_pb2.MetricList()
-            
 
-
+# ── Server ─────────────────────────────────────────────
 def serve():
     server = grpc.server(futures.ThreadPoolExecutor(max_workers=10))
-    analytics_pb2_grpc.add_AnalyticsServiceServicer_to_server(
-        AnalyticsService(), server
-    )
+    analytics_pb2_grpc.add_AnalyticsServiceServicer_to_server(AnalyticsService(), server)
     server.add_insecure_port('[::]:50052')
     server.start()
-    print("N6 Analytics Service running on port 50052")
+    print("[Analytics] N6 Analytics Service running on port 50052")
     server.wait_for_termination()
-
 
 if __name__ == "__main__":
     serve()

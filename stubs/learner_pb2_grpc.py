@@ -5,7 +5,7 @@ import grpc
 import common_pb2 as common__pb2
 
 
-class ExperimentServiceStub(object):
+class LearnerServiceStub(object):
     """Missing associated documentation comment in .proto file."""
 
     def __init__(self, channel):
@@ -14,77 +14,77 @@ class ExperimentServiceStub(object):
         Args:
             channel: A grpc.Channel.
         """
-        self.StartExperiment = channel.unary_unary(
-                '/rl.ExperimentService/StartExperiment',
+        self.Initialize = channel.unary_unary(
+                '/rl.LearnerService/Initialize',
                 request_serializer=common__pb2.ExperimentConfig.SerializeToString,
                 response_deserializer=common__pb2.Status.FromString,
                 )
-        self.StopExperiment = channel.unary_unary(
-                '/rl.ExperimentService/StopExperiment',
+        self.TrainStep = channel.unary_unary(
+                '/rl.LearnerService/TrainStep',
                 request_serializer=common__pb2.ExperimentConfig.SerializeToString,
                 response_deserializer=common__pb2.Status.FromString,
                 )
-        self.GetExperimentStatus = channel.unary_unary(
-                '/rl.ExperimentService/GetExperimentStatus',
+        self.GetTrainingStatus = channel.unary_unary(
+                '/rl.LearnerService/GetTrainingStatus',
                 request_serializer=common__pb2.ExperimentConfig.SerializeToString,
-                response_deserializer=common__pb2.Status.FromString,
+                response_deserializer=common__pb2.Metrics.FromString,
                 )
 
 
-class ExperimentServiceServicer(object):
+class LearnerServiceServicer(object):
     """Missing associated documentation comment in .proto file."""
 
-    def StartExperiment(self, request, context):
-        """Start a new experiment
+    def Initialize(self, request, context):
+        """Initialize learner with config
         """
         context.set_code(grpc.StatusCode.UNIMPLEMENTED)
         context.set_details('Method not implemented!')
         raise NotImplementedError('Method not implemented!')
 
-    def StopExperiment(self, request, context):
-        """Stop experiment across system
+    def TrainStep(self, request, context):
+        """Trigger a training step
         """
         context.set_code(grpc.StatusCode.UNIMPLEMENTED)
         context.set_details('Method not implemented!')
         raise NotImplementedError('Method not implemented!')
 
-    def GetExperimentStatus(self, request, context):
-        """Query current status
+    def GetTrainingStatus(self, request, context):
+        """Fetch training metrics
         """
         context.set_code(grpc.StatusCode.UNIMPLEMENTED)
         context.set_details('Method not implemented!')
         raise NotImplementedError('Method not implemented!')
 
 
-def add_ExperimentServiceServicer_to_server(servicer, server):
+def add_LearnerServiceServicer_to_server(servicer, server):
     rpc_method_handlers = {
-            'StartExperiment': grpc.unary_unary_rpc_method_handler(
-                    servicer.StartExperiment,
+            'Initialize': grpc.unary_unary_rpc_method_handler(
+                    servicer.Initialize,
                     request_deserializer=common__pb2.ExperimentConfig.FromString,
                     response_serializer=common__pb2.Status.SerializeToString,
             ),
-            'StopExperiment': grpc.unary_unary_rpc_method_handler(
-                    servicer.StopExperiment,
+            'TrainStep': grpc.unary_unary_rpc_method_handler(
+                    servicer.TrainStep,
                     request_deserializer=common__pb2.ExperimentConfig.FromString,
                     response_serializer=common__pb2.Status.SerializeToString,
             ),
-            'GetExperimentStatus': grpc.unary_unary_rpc_method_handler(
-                    servicer.GetExperimentStatus,
+            'GetTrainingStatus': grpc.unary_unary_rpc_method_handler(
+                    servicer.GetTrainingStatus,
                     request_deserializer=common__pb2.ExperimentConfig.FromString,
-                    response_serializer=common__pb2.Status.SerializeToString,
+                    response_serializer=common__pb2.Metrics.SerializeToString,
             ),
     }
     generic_handler = grpc.method_handlers_generic_handler(
-            'rl.ExperimentService', rpc_method_handlers)
+            'rl.LearnerService', rpc_method_handlers)
     server.add_generic_rpc_handlers((generic_handler,))
 
 
  # This class is part of an EXPERIMENTAL API.
-class ExperimentService(object):
+class LearnerService(object):
     """Missing associated documentation comment in .proto file."""
 
     @staticmethod
-    def StartExperiment(request,
+    def Initialize(request,
             target,
             options=(),
             channel_credentials=None,
@@ -94,14 +94,14 @@ class ExperimentService(object):
             wait_for_ready=None,
             timeout=None,
             metadata=None):
-        return grpc.experimental.unary_unary(request, target, '/rl.ExperimentService/StartExperiment',
+        return grpc.experimental.unary_unary(request, target, '/rl.LearnerService/Initialize',
             common__pb2.ExperimentConfig.SerializeToString,
             common__pb2.Status.FromString,
             options, channel_credentials,
             insecure, call_credentials, compression, wait_for_ready, timeout, metadata)
 
     @staticmethod
-    def StopExperiment(request,
+    def TrainStep(request,
             target,
             options=(),
             channel_credentials=None,
@@ -111,14 +111,14 @@ class ExperimentService(object):
             wait_for_ready=None,
             timeout=None,
             metadata=None):
-        return grpc.experimental.unary_unary(request, target, '/rl.ExperimentService/StopExperiment',
+        return grpc.experimental.unary_unary(request, target, '/rl.LearnerService/TrainStep',
             common__pb2.ExperimentConfig.SerializeToString,
             common__pb2.Status.FromString,
             options, channel_credentials,
             insecure, call_credentials, compression, wait_for_ready, timeout, metadata)
 
     @staticmethod
-    def GetExperimentStatus(request,
+    def GetTrainingStatus(request,
             target,
             options=(),
             channel_credentials=None,
@@ -128,8 +128,8 @@ class ExperimentService(object):
             wait_for_ready=None,
             timeout=None,
             metadata=None):
-        return grpc.experimental.unary_unary(request, target, '/rl.ExperimentService/GetExperimentStatus',
+        return grpc.experimental.unary_unary(request, target, '/rl.LearnerService/GetTrainingStatus',
             common__pb2.ExperimentConfig.SerializeToString,
-            common__pb2.Status.FromString,
+            common__pb2.Metrics.FromString,
             options, channel_credentials,
             insecure, call_credentials, compression, wait_for_ready, timeout, metadata)
