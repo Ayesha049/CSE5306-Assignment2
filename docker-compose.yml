@@ -64,6 +64,8 @@ services:
       dockerfile: services/Learner_Service_N4/Dockerfile
     container_name: n4-learner
     restart: on-failure
+    ports:
+      - "50054:50054"
     depends_on:
       - buffer
       - analytics

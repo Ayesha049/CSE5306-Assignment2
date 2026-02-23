@@ -22,7 +22,7 @@ User / Client
                      └──────────┬────────┘    └──────────▲──────────┘
                                 │ sample batches          │ push weights
                      ┌──────────▼────────────────────────┴──────────┐
-                     │  N4  Learner Service                          │
+                     │  N4  Learner Service : 50054                         │
                      └──────────┬────────────────────────────────────┘
                                 │ report metrics
                      ┌──────────▼────────┐
@@ -39,7 +39,7 @@ User / Client
 | N1 | Experiment Service | 50053 | User-facing entry point; manages experiment lifecycle |
 | N2 | Environment Service | 50050 | Runs RL rollouts and generates experience transitions |
 | N3 | Buffer Service | 50051 | Replay buffer — stores and samples experience transitions |
-| N4 | Learner Service | — | Trains the policy on sampled batches |
+| N4 | Learner Service | 50054 | Trains the policy on sampled batches |
 | N5 | Policy Service | 50056 | Stores and serves versioned MLP policy weights |
 | N6 | Analytics Service | 50052 | Centralised metrics collection backed by MySQL |
 

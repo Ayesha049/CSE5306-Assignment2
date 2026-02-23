@@ -19,5 +19,7 @@ COPY services/Learner_Service_N4 ./Learner
 
 WORKDIR /app/Learner
 
+EXPOSE 50054
+
 # Set default command
 CMD ["python", "-u", "learner_service.py"]
