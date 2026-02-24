@@ -32,6 +32,7 @@ sys.path.append("/app/stubs")  # path inside Docker container
 
 import sys
 import os
+import socket
 import json
 import grpc
 import pickle
@@ -62,10 +63,35 @@ logging.basicConfig(
 logger = logging.getLogger("N2-Environment")
 
 # ── service addresses ──────────────────────────────────────────────────────────
-N3_ADDR = "buffer:50051"   # Buffer Service
-N5_ADDR = "policy:50056"   # Policy Service
-N6_ADDR = "analytics:50052"   # Analytics Service
-PORT    = 50050
+N3_SERVICE = "buffer"        # Buffer Service (supports multiple replicas via --scale)
+N3_PORT    = 50051
+N5_ADDR    = "policy:50056"  # Policy Service
+N6_ADDR    = "analytics:50052"  # Analytics Service
+PORT       = 50050
+
+
+def discover_n3_hosts() -> list[str]:
+    """
+    Discover all running N3 (Buffer) container IPs via Docker's embedded DNS.
+
+    When 'buffer' is scaled to N replicas with:
+        docker-compose up --scale buffer=N
+    Docker DNS resolves 'buffer' to all N container IPs, so this function
+    returns N addresses for round-robin load balancing.
+
+    Falls back to a single "buffer:50051" entry if DNS resolution fails
+    (e.g. when running outside Docker), ensuring backward compatibility.
+    """
+    try:
+        results = socket.getaddrinfo(N3_SERVICE, N3_PORT, socket.AF_INET, socket.SOCK_STREAM)
+        ips = list({r[4][0] for r in results})   # deduplicate
+        if ips:
+            hosts = [f"{ip}:{N3_PORT}" for ip in sorted(ips)]
+            logger.info(f"[N2] Discovered N3 instances: {hosts}")
+            return hosts
+    except socket.gaierror:
+        pass
+    return [f"{N3_SERVICE}:{N3_PORT}"]  # fallback: single instance
 
 # ── rollout hyper-parameters ───────────────────────────────────────────────────
 POLICY_REFRESH_STEPS = 50     # re-fetch policy from N5 every N environment steps
@@ -234,6 +260,7 @@ class RolloutRunner:
         self.thread     = None
         self.rng        = np.random.RandomState(config.seed)
         self.epsilon    = EPSILON_START
+        self._n3_idx    = 0   # round-robin counter for N3 load balancing
 
     def start(self):
         if self.thread and self.thread.is_alive():
@@ -250,12 +277,16 @@ class RolloutRunner:
     # ── main loop ─────────────────────────────────────────────────────────────
     def _run(self):
         # create gRPC stubs once per thread
-        policy_stub   = policy_pb2_grpc.PolicyServiceStub(
+        policy_stub    = policy_pb2_grpc.PolicyServiceStub(
             grpc.insecure_channel(N5_ADDR)
         )
-        buffer_stub   = buffer_pb2_grpc.BufferServiceStub(
-            grpc.insecure_channel(N3_ADDR)
-        )
+        # Discover all N3 instances at rollout start; one stub per instance.
+        # With 'docker-compose up --scale buffer=N', all N replicas are found here.
+        n3_hosts       = discover_n3_hosts()
+        buffer_stubs   = [
+            buffer_pb2_grpc.BufferServiceStub(grpc.insecure_channel(h))
+            for h in n3_hosts
+        ]
         analytics_stub = analytics_pb2_grpc.AnalyticsServiceStub(
             grpc.insecure_channel(N6_ADDR)
         )
@@ -312,7 +343,10 @@ class RolloutRunner:
                     next_state = json.dumps(next_state.tolist()),
                     done       = bool(done),
                 )
-                buffer_stub.PushTransition(
+                # Round-robin: select next N3 stub and advance counter
+                buf_stub = buffer_stubs[self._n3_idx % len(buffer_stubs)]
+                self._n3_idx += 1
+                buf_stub.PushTransition(
                     buffer_pb2.PushRequest(transition=transition),
                     timeout=3,
                 )

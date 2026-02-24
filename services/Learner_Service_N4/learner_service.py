@@ -1,6 +1,7 @@
 import sys
 sys.path.append("/app/stubs")  # path inside Docker container
 
+import socket
 import grpc
 import time
 import random
@@ -19,10 +20,27 @@ import common_pb2
 import common_pb2_grpc
 
 # Config: gRPC endpoints
-BUFFER_HOSTS = ["buffer:50051"]  # can add more buffers
+N3_SERVICE     = "buffer"        # Buffer Service (supports multiple replicas via --scale)
+N3_PORT        = 50051
 ANALYTICS_HOST = "analytics:50052"
-POLICY_HOST = "policy:50056"  # N5 Policy Service gRPC endpoint
-PORT = 50054
+POLICY_HOST    = "policy:50056"  # N5 Policy Service gRPC endpoint
+PORT           = 50054
+
+
+def discover_n3_hosts() -> list[str]:
+    """
+    Discover all running N3 (Buffer) container IPs via Docker's embedded DNS.
+    Returns a list of "ip:port" strings.  Falls back to a single
+    "buffer:50051" entry if DNS resolution fails, ensuring backward compatibility.
+    """
+    try:
+        results = socket.getaddrinfo(N3_SERVICE, N3_PORT, socket.AF_INET, socket.SOCK_STREAM)
+        ips = list({r[4][0] for r in results})
+        if ips:
+            return [f"{ip}:{N3_PORT}" for ip in sorted(ips)]
+    except socket.gaierror:
+        pass
+    return [f"{N3_SERVICE}:{N3_PORT}"]
 
 class LearnerService:
     """Core learner logic."""
@@ -38,13 +56,37 @@ class LearnerService:
         self.policy_stub = policy_pb2_grpc.PolicyServiceStub(self.policy_channel)
 
     def sample_batch(self, batch_size=32):
-        buffer_host = random.choice(BUFFER_HOSTS)
-        channel = grpc.insecure_channel(buffer_host)
-        stub = buffer_pb2_grpc.BufferServiceStub(channel)
-        request = buffer_pb2.SampleRequest(batch_size=batch_size)
-        batch_response = stub.SampleBatch(request)
-        print(f"[Learner] Sampled batch of size {len(batch_response.transitions)} from buffer {buffer_host}")
-        return batch_response.transitions
+        """
+        Sample a batch of transitions from ALL N3 (Buffer) instances.
+
+        Because N2 distributes transitions across N3 replicas via round-robin,
+        each N3 shard holds only a fraction of the total experience.  Sampling
+        from a single random N3 would give a biased view (1/N of total data).
+
+        Instead, we split the requested batch evenly across all discovered N3
+        instances and merge the results, ensuring every shard contributes to
+        each training step.
+        """
+        n3_hosts = discover_n3_hosts()
+        n        = len(n3_hosts)
+
+        # Distribute batch_size evenly; first (batch_size % n) shards get +1
+        base, extra = divmod(batch_size, n)
+        shard_sizes = [base + (1 if i < extra else 0) for i in range(n)]
+
+        all_transitions = []
+        for host, shard_size in zip(n3_hosts, shard_sizes):
+            try:
+                channel  = grpc.insecure_channel(host)
+                stub     = buffer_pb2_grpc.BufferServiceStub(channel)
+                response = stub.SampleBatch(buffer_pb2.SampleRequest(batch_size=shard_size))
+                all_transitions.extend(response.transitions)
+                print(f"[Learner] Sampled {len(response.transitions)} transitions from {host}")
+            except Exception as e:
+                print(f"[Learner] Failed to sample from {host}: {e}")
+
+        print(f"[Learner] Total batch size: {len(all_transitions)} from {n} N3 instance(s)")
+        return all_transitions
 
     def train_policy(self, batch):
         print(f"[Learner] Starting training on batch of size {len(batch)}...")

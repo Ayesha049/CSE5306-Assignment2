@@ -27,13 +27,12 @@ services:
         condition: service_healthy
 
   # ── N3: Buffer Service ────────────────────────────────────────────────────
+  # Scalable: docker-compose up --scale buffer=N
+  # N2 and N4 auto-discover all replicas via Docker DNS at runtime.
   buffer:
     build:
       context: .
       dockerfile: services/Buffer_Service_N3/Dockerfile
-    container_name: n3-buffer
-    ports:
-      - "50051:50051"
 
   # ── N5: Policy Service ────────────────────────────────────────────────────
   policy:
@@ -45,13 +44,13 @@ services:
       - "50056:50056"
 
   # ── N2: Environment Service ───────────────────────────────────────────────
+  # Scalable: docker-compose up --scale environment=N
+  # N1 auto-discovers all replicas via Docker DNS and distributes experiments
+  # across them via round-robin.
   environment:
     build:
       context: .
       dockerfile: services/Environment_Service_N2/Dockerfile
-    container_name: n2-environment
-    ports:
-      - "50050:50050"
     depends_on:
       - buffer
       - policy
