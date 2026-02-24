@@ -1,0 +1,29 @@
+version: "3.9"
+
+services:
+
+  rl-mysql-mono:
+    image: mysql:8.0
+    container_name: rl-mysql-mono
+    restart: always
+    environment:
+      MYSQL_ROOT_PASSWORD: password
+      MYSQL_DATABASE: rl_analytics
+    ports:
+      - "3307:3306"   # IMPORTANT: different port than microservice
+    volumes:
+      - mysql_mono_data:/var/lib/mysql
+
+  monolith:
+    build: .
+    container_name: rl-monolith
+    depends_on:
+      - rl-mysql-mono
+    environment:
+      MYSQL_HOST: rl-mysql-mono
+    ports:
+      - "50063:50053"   # different external port
+    restart: always
+
+volumes:
+  mysql_mono_data:
