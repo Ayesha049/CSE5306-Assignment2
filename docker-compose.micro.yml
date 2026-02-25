@@ -1,0 +1,81 @@
+services:
+  # ── MySQL for N6 Analytics ────────────────────────────────────────────────
+  rl-mysql:
+    image: mysql:8.0
+    container_name: rl-mysql
+    environment:
+      MYSQL_ROOT_PASSWORD: password
+      MYSQL_DATABASE: rl_analytics
+    ports:
+      - "3306:3306"
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-ppassword"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ── N6: Analytics Service ─────────────────────────────────────────────────
+  analytics:
+    build:
+      context: .
+      dockerfile: services/Analytics_Service_N6/Dockerfile
+    container_name: n6-analytics
+    ports:
+      - "50052:50052"
+    depends_on:
+      rl-mysql:
+        condition: service_healthy
+
+  # ── N3: Buffer Service ────────────────────────────────────────────────────
+  # Scalable: docker-compose up --scale buffer=N
+  # N2 and N4 auto-discover all replicas via Docker DNS at runtime.
+  buffer:
+    build:
+      context: .
+      dockerfile: services/Buffer_Service_N3/Dockerfile
+
+  # ── N5: Policy Service ────────────────────────────────────────────────────
+  policy:
+    build:
+      context: .
+      dockerfile: services/Policy_Service_N5/Dockerfile
+    container_name: n5-policy
+    ports:
+      - "50056:50056"
+
+  # ── N2: Environment Service ───────────────────────────────────────────────
+  # Scalable: docker-compose up --scale environment=N
+  # N1 auto-discovers all replicas via Docker DNS and distributes experiments
+  # across them via round-robin.
+  environment:
+    build:
+      context: .
+      dockerfile: services/Environment_Service_N2/Dockerfile
+    depends_on:
+      - buffer
+      - policy
+      - analytics
+
+  # ── N4: Learner Service ───────────────────────────────────────────────────
+  learner:
+    build:
+      context: .
+      dockerfile: services/Learner_Service_N4/Dockerfile
+    container_name: n4-learner
+    restart: on-failure
+    ports:
+      - "50054:50054"
+    depends_on:
+      - buffer
+      - analytics
+
+  # ── N1: Experiment Service ────────────────────────────────────────────────
+  experiment:
+    build:
+      context: .
+      dockerfile: services/Experiment_Service_N1/Dockerfile
+    container_name: n1-experiment
+    ports:
+      - "50053:50053"
+    depends_on:
+      - environment
