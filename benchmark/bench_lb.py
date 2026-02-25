@@ -136,7 +136,12 @@ def bench_full_pipeline(target_episodes: int, num_experiments: int,
     print(f"  All experiments running. Waiting for {target_episodes} new episodes...")
 
     # 3. Poll N6 until target reached
+    # Both total_time and actual_eps are captured at the same poll instant
+    # so that eps_per_sec = actual_eps / total_time is internally consistent.
+    total_time = None
+    actual_eps = 0
     last_print = -10
+
     while True:
         new_episodes = count_episodes(analytics_stub) - baseline
         elapsed      = time.time() - t_start
@@ -146,15 +151,16 @@ def bench_full_pipeline(target_episodes: int, num_experiments: int,
             last_print = elapsed
 
         if new_episodes >= target_episodes:
+            total_time = elapsed        # lock time at this exact poll
+            actual_eps = new_episodes   # lock count at this exact poll
             break
         if elapsed > TIMEOUT:
             print(f"  [warn] Timeout ({TIMEOUT}s) before reaching target.")
+            total_time = elapsed
+            actual_eps = new_episodes
             break
 
         time.sleep(POLL_INTERVAL)
-
-    total_time    = time.time() - t_start
-    actual_eps    = count_episodes(analytics_stub) - baseline
 
     # 4. Stop all experiments
     print(f"  Stopping experiments...")
@@ -164,7 +170,7 @@ def bench_full_pipeline(target_episodes: int, num_experiments: int,
         except Exception:
             pass
 
-    eps_per_sec = actual_eps / total_time if total_time > 0 else 0
+    eps_per_sec = actual_eps / total_time if total_time and total_time > 0 else 0
     return total_time, actual_eps, eps_per_sec
 
 
