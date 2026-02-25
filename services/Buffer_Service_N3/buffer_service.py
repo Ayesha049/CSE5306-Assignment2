@@ -87,8 +87,8 @@ class BufferService(buffer_pb2_grpc.BufferServiceServicer):
             if self.push_count % SAVE_INTERVAL == 0:
                 self.save_buffer()
 
-            total = len(self.storage)
-            self.send_metric(total)
+            total = self.push_count
+            self.send_metric(len(self.storage))
 
             # ✅ SAFE threshold logic (no thread explosion)
             if total >= TRAIN_THRESHOLD and total - self.last_trigger_size >= TRAIN_THRESHOLD:

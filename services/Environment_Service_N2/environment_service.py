@@ -98,7 +98,7 @@ POLICY_REFRESH_STEPS = 50     # re-fetch policy from N5 every N environment step
 EPSILON_START        = 1.0    # initial exploration rate
 EPSILON_END          = 0.05   # minimum exploration rate
 EPSILON_DECAY        = 0.995  # per-episode multiplicative decay
-STEP_DELAY           = 0.005  # seconds between steps (throttle data collection)
+STEP_DELAY           = 0      # no artificial delay — real CartPole physics + MLP inference
 
 
 # ════════════════════════════════════════════════════════════════════════════════

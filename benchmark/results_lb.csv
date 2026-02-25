@@ -1,0 +1,10 @@
+n2_replicas,n3_replicas,load_level,concurrent_experiments,target_episodes,actual_episodes,total_time_s,eps_per_sec
+1,1,Light,5,20,24,0.705,34.066
+1,1,Medium,20,100,119,4.321,27.537
+1,1,Heavy,50,300,319,10.988,29.032
+2,2,Light,5,20,44,0.759,57.946
+2,2,Medium,20,100,117,2.583,45.296
+2,2,Heavy,50,300,321,6.996,45.881
+4,4,Light,5,20,75,1.093,68.602
+4,4,Medium,20,100,204,3.205,63.658
+4,4,Heavy,50,300,329,7.797,42.197
