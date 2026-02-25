@@ -1,44 +1,47 @@
-import csv
 from bench_core import run_benchmark
-
-print("RUN_ALL STARTED")
+import csv
 
 MICRO_TARGET = "localhost:50053"
-MONO_TARGET = "localhost:50063"
+MICRO_ANALYTICS = "localhost:50052"
 
-LOADS = [
-    ("Light", 20, 5),
-    ("Medium", 100, 20),
-    ("Heavy", 300, 50),
+MONO_TARGET = "localhost:50063"
+MONO_ANALYTICS = "localhost:50063"   # monolith handles analytics inside
+
+WORKLOADS = [
+    ("Light", 50, 5),
+    ("Medium", 200, 20),
+    ("Heavy", 500, 50),
 ]
 
-def run_architecture(target, filename):
 
-    with open(filename, "w", newline="") as f:
+def run_architecture(target, analytics_target, output_file):
+    with open(output_file, "w", newline="") as f:
         writer = csv.writer(f)
         writer.writerow(["Load", "Throughput", "AvgLatency", "P95Latency"])
 
-        for label, requests, concurrency in LOADS:
+        for label, requests, concurrency in WORKLOADS:
             print(f"\nRunning {label} load on {target}")
 
-            thr, avg, p95 = run_benchmark(
+            throughput, avg, p95 = run_benchmark(
                 target,
+                analytics_target,
                 requests,
                 concurrency,
                 label
             )
 
-            print("Throughput:", thr)
+            print("Throughput:", throughput)
             print("Avg Latency:", avg)
             print("P95:", p95)
 
-            writer.writerow([label, thr, avg, p95])
+            writer.writerow([label, throughput, avg, p95])
 
 
 if __name__ == "__main__":
+    print("RUN_ALL STARTED")
 
     print("=== Running Microservice Benchmark ===")
-    run_architecture(MICRO_TARGET, "results_micro.csv")
+    run_architecture(MICRO_TARGET, MICRO_ANALYTICS, "results_micro.csv")
 
     print("\n=== Running Monolith Benchmark ===")
-    run_architecture(MONO_TARGET, "results_mono.csv")
+    run_architecture(MONO_TARGET, MONO_ANALYTICS, "results_mono.csv")
